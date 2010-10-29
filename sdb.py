@@ -2,25 +2,6 @@ import sys
 import shlex
 
 """
-The graph module allows you to use Graph data structures. A graph has nodes and
-edges which connect the various nodes. A range of operations can be performed
-on the data structures such as walking the graph, doing dependency resolution
-and finding the shortest path.
-
-Example:
-
->>> g = Graph()
->>> g.add_node('php')
->>> g.add_node('apache')
->>> g.add_node('pear')
->>> g.add_node('wordpress')
->>> g.add_node('genshi')
->>> g.add_edge('wordpress', 'pear')
->>> g.add_edge('genshi', 'wordpress')
->>> g.add_edge('pear', 'php')
->>> g.add_edge('php', 'apache')
->>> g.resolve('wordpress')
-['apache', 'php', 'pear', 'wordpress']
 """
 
 class SDB(object):
