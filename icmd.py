@@ -98,14 +98,15 @@ class ICmdBase(object):
 
 		# Get usage from the parameters
 		args = inspect.getargspec(func)
+
 		parcnt_max = len(args.args) - 1
 		parcnt_min = len(args.args) - 1 - len(args.defaults or '')
 		help_usage = command
 		for i in range(1, len(args.args)):
 			if i <= parcnt_min:
-				help_usage += " [%s]" % (args.args[i])
-			else:
 				help_usage += " <%s>" % (args.args[i])
+			else:
+				help_usage += " [%s]" % (args.args[i])
 
 		return([help_short, help_desc, help_usage])
 
@@ -121,7 +122,10 @@ class ICmdBase(object):
 
 	def _output(self, line):
 		if not self.batch:
-			print line
+			sys.stdout.write(line + '\n')
+
+	def _error(self, line):
+		sys.stderr.write(line + '\n')
 
 class ICmdError(Exception):
 	pass
@@ -161,7 +165,7 @@ class ICmd(object):
 			readline.parse_and_bind("tab: complete")
 
 		if not self.batch:
-			print welcometext
+			sys.stdout.write(welcometext + '\n')
 
 	def dispatch(self, cmd, params=[]):
 		"""
@@ -177,13 +181,14 @@ class ICmd(object):
 
 		# Introspect how many arguments the function takes and how many the
 		# user gave.
+
+
 		args = inspect.getargspec(func)
 
 		parcnt_given = len(params)
 		parcnt_max = len(args.args) - 1
 		parcnt_min = len(args.args) - 1 - len(args.defaults or '')
 		logging.info("dispatch: params: given: %i, min: %i, max: %i" % (parcnt_given, parcnt_min, parcnt_max))
-
 		if parcnt_given < parcnt_min:
 			raise ICmdError(2, 'Not enough parameters given')
 		elif not args.varargs and parcnt_given > parcnt_max:
@@ -235,7 +240,7 @@ class ICmd(object):
 					try:
 						self.run_once()
 					except ICmdError, e:
-						print e.args[1]
+						sys.stderr.write('%s\n' % (e.args[1]))
 						logging.info("ICmd.run intercepted an error: %s" % (e))
 					except EOFError, e:
 						break
