@@ -1,5 +1,10 @@
 #!/usr/bin/python
 
+#
+# TODO:
+# - Currently can't specify the history file.
+#
+
 """
 ICmd is a wrapper library for easily creating interactive commandline programs.
 You simply create a class that inherits from the ICmdBase class and create a
@@ -25,6 +30,11 @@ Example:
 
 	icmd = ICmd(ICmdTest)
 	icmd.run()
+
+NOTES:
+
+	You can NOT use method decorators, as ICmd does introspection of the
+	methods in the derived class.
 """
 
 import sys
@@ -32,7 +42,7 @@ import os
 import inspect
 import logging
 try:
-	import readlin
+	import readline
 except ImportError:
 	pass
 
@@ -41,9 +51,10 @@ class ICmdBase(object):
 	Base class for ICmd commandline classes. Inherit from this class to get
 	default commands in your commandline application.
 	"""
-	def __init__(self, helptext_prefix = '', helptext_suffix = ''):
+	def __init__(self, helptext_prefix = '', helptext_suffix = '', batch=False):
 		self.helptext_prefix = helptext_prefix
 		self.helptext_suffix = helptext_suffix
+		self.batch = batch
 
 	def help(self, command=None):
 		"""
@@ -59,17 +70,17 @@ class ICmdBase(object):
 
 			if not command.startswith('_') and callable(func):
 				help = self._help_getspecifics(command)
-				print "%s: %s" % (command, help[0])
-				print "Usage: %s\n" % (help[2])
-				print "  %s\n" % (help[1])
+				self._output("%s: %s" % (command, help[0]))
+				self._output("Usage: %s\n" % (help[2]))
+				self._output("  %s\n" % (help[1]))
 		else:
 			# Display all available commands
-			print self.helptext_prefix
+			self._output(self.helptext_prefix)
 			for cmd in dir(self):
 				if not cmd.startswith('_') and callable(getattr(self, cmd)):
 					help = self._help_getspecifics(cmd)
-					print '  %s: %s' % (cmd, help[0])
-			print self.helptext_suffix
+					self._output('  %10s: %s' % (cmd, help[0]))
+			self._output(self.helptext_suffix)
 
 	def _help_getspecifics(self, command):
 		help_short = ''
@@ -83,7 +94,7 @@ class ICmdBase(object):
 			if len(doc) == 1:
 				help_short = doc[0]
 			else:
-				help_short, help_desc = doc[0], doc[1]
+				help_short, help_desc = doc[0], '\n  '.join(doc[1:])
 
 		# Get usage from the parameters
 		args = inspect.getargspec(func)
@@ -101,10 +112,16 @@ class ICmdBase(object):
 	def quit(self):
 		"""
 		Exit the program.
+		Exit the program. Does not save any changes!
 		"""
 		raise SystemExit()
 
 	exit = quit
+	exit.__doc__ = exit.__doc__
+
+	def _output(self, line):
+		if not self.batch:
+			print line
 
 class ICmdError(Exception):
 	pass
@@ -115,17 +132,21 @@ class ICmd(object):
 	ICmdBase class, provide an interactive commandline to control that class.
 	"""
 
-	def __init__(self, rootclass, prompt='> ', welcometext='Type \'help\' for help.', helptext_prefix='The following commands are available: (type \'help <command>\' for details)\n', helptext_suffix='', silent=False):
+	def __init__(self, rootclass, prompt='> ', welcometext='Type \'help\' for help.', helptext_prefix='The following commands are available:\n', helptext_suffix='\n(type \'help <command>\' for details)\n', batch=False):
 		"""
 		Create a new interactive commandline interface to rootclass by creating
 		an instance of rootclass (your class must derive from ICmdBase). Use
-		ICmd.run() or run_once() to start the commandline client.
+		ICmd.run() or run_once() to start the commandline client. `batch`
+		indicates wether to run in batch mode. If so, ICmd is silent (except
+		for errors) and non-interactive; instead reading from stdin and
+		executing each line as a command. It will exit after no more lines are
+		available.
 		"""
 		self.rootclass = rootclass
 		self.prompt = prompt
 		self.welcometext = welcometext
-		self.silent = silent
-		self.instclass = self.rootclass(helptext_prefix, helptext_suffix)
+		self.batch = batch
+		self.instclass = self.rootclass(helptext_prefix, helptext_suffix, self.batch)
 
 		# Initialize readline, but only if we were able to load the module.
 		if 'readline' in sys.modules:
@@ -139,7 +160,7 @@ class ICmd(object):
 			readline.set_completer(self._completer)
 			readline.parse_and_bind("tab: complete")
 
-		if not self.silent:
+		if not self.batch:
 			print welcometext
 
 	def dispatch(self, cmd, params=[]):
@@ -165,7 +186,7 @@ class ICmd(object):
 
 		if parcnt_given < parcnt_min:
 			raise ICmdError(2, 'Not enough parameters given')
-		elif parcnt_given > parcnt_max:
+		elif not args.varargs and parcnt_given > parcnt_max:
 			raise ICmdError(3, 'Too many parameters given')
 
 		return(func(*params))
@@ -183,7 +204,7 @@ class ICmd(object):
 		except IndexError:
 			return None
 
-	def run_once(self):
+	def run_once(self, catcherrors=True):
 		"""
 		Ask the user for a single line of input and run that command. Returns
 		the returned result of the command callable (i.e. the return value of
@@ -202,8 +223,12 @@ class ICmd(object):
 		Continually ask the user for lines of input and run those commands.
 		Catches all ICmdErrors and displays those errors. Catches
 		KeyboardInterrupt and SystemExit exceptions in order to clean up
-		readline.
+		readline. Returns True if the player quit the application by typing
+		'quit' or 'exit'. Doesn't return anything (None) otherwise.
 		"""
+		if self.batch:
+			self.prompt = ''
+
 		try:
 			while True:
 				if catcherrors:
@@ -212,6 +237,8 @@ class ICmd(object):
 					except ICmdError, e:
 						print e.args[1]
 						logging.info("ICmd.run intercepted an error: %s" % (e))
+					except EOFError, e:
+						break
 				else:
 					self.run_once()
 		except (SystemExit, KeyboardInterrupt):
@@ -219,22 +246,37 @@ class ICmd(object):
 				logging.info("Writing readline command history")
 				readline.write_history_file(self.histfile)
 
+		return(True)
+
 if __name__ == "__main__":
 	class ICmdTest(ICmdBase):
 		def load(self, fname):
+			"""
+			Load a file
+			Load the file indicated by FNAME.
+			"""
 			self.fname = fname
 			print "Loading %s" % (self.fname)
 
 		def save(self):
+			"""
+			Save loaded file
+			Save changed made to the file loaded with the 'load' command.
+			"""
 			fname = getattr(self, 'fname', None)
 			print "Saving %s" % (fname)
 
 		def test(self, required, optional='optional'):
+			"""
+			Parameter tests
+			Some parameter tests with a non-optional and optional parameter.
+			Also a two-line help description.
+			"""
 			logging.info("Test: required=%s, optional=%s" % (required, optional))
 
 	#logging.getLogger().level = logging.INFO
-	icmd = ICmd(ICmdTest)
+	icmd = ICmd(ICmdTest, batch=False)
 	icmd.run()
 
-	icmd.dispatch('load', ['foo'])
-	icmd.dispatch('save')
+	#icmd.dispatch('load', ['foo'])
+	#icmd.dispatch('save')
