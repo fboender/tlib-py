@@ -2,7 +2,9 @@
 
 #
 # TODO:
-# - Currently can't specify the history file.
+# -  File "/home/todsah/Development/mcplayeredit/lib/icmd.py", line 97, in _help_getspecifics
+#    help_short, help_desc = doc[0], '\n  '.join(doc[1:]) (EMPTY DOC STRING)
+
 #
 
 """
@@ -41,7 +43,17 @@ import sys
 import os
 import inspect
 import logging
+
+# Try to load the clusterfuck that is readline. THANKS GNU!
 try:
+	# See if we can load PyReadline (an almost pure Python implementation of
+	# readline for windows)
+	import pyreadline as readline
+except ImportError:
+	pass
+
+try:
+	# Lets try the Unix readline version.
 	import readline
 except ImportError:
 	pass
@@ -72,7 +84,9 @@ class ICmdBase(object):
 				help = self._help_getspecifics(command)
 				self._output("%s: %s" % (command, help[0]))
 				self._output("Usage: %s\n" % (help[2]))
-				self._output("  %s\n" % (help[1]))
+				for line in help[1].splitlines():
+					self._output("  %s" % (line))
+				self._output('')
 		else:
 			# Display all available commands
 			self._output(self.helptext_prefix)
@@ -90,25 +104,28 @@ class ICmdBase(object):
 		# Get short and full descriptions from the function's docstring.
 		func = getattr(self, command)
 		if func.__doc__:
-			doc = [l.strip() for l in func.__doc__.strip().splitlines()]
-			if len(doc) == 1:
-				help_short = doc[0]
-			else:
-				help_short, help_desc = doc[0], '\n  '.join(doc[1:])
+			for line in func.__doc__.strip().splitlines():
+				if line.lower().strip().startswith('usage:'):
+					help_usage = line[8:].strip()
+				elif not help_short:
+					help_short = line.strip()
+				else:
+					help_desc += "%s\n" % (line.strip())
 
 		# Get usage from the parameters
-		args = inspect.getargspec(func)
+		if not help_usage:
+			args = inspect.getargspec(func)
 
-		parcnt_max = len(args.args) - 1
-		parcnt_min = len(args.args) - 1 - len(args.defaults or '')
-		help_usage = command
-		for i in range(1, len(args.args)):
-			if i <= parcnt_min:
-				help_usage += " <%s>" % (args.args[i])
-			else:
-				help_usage += " [%s]" % (args.args[i])
+			parcnt_max = len(args.args) - 1
+			parcnt_min = len(args.args) - 1 - len(args.defaults or '')
+			help_usage = command
+			for i in range(1, len(args.args)):
+				if i <= parcnt_min:
+					help_usage += " <%s>" % (args.args[i])
+				else:
+					help_usage += " [%s]" % (args.args[i])
 
-		return([help_short, help_desc, help_usage])
+		return([help_short.strip(), help_desc.strip(), help_usage.strip()])
 
 	def quit(self):
 		"""
@@ -136,7 +153,7 @@ class ICmd(object):
 	ICmdBase class, provide an interactive commandline to control that class.
 	"""
 
-	def __init__(self, rootclass, prompt='> ', welcometext='Type \'help\' for help.', helptext_prefix='The following commands are available:\n', helptext_suffix='\n(type \'help <command>\' for details)\n', batch=False):
+	def __init__(self, rootclass, prompt='> ', histfile=os.path.join(os.environ.get('HOME', ''), '.icmd_hist'), welcometext='Type \'help\' for help.', helptext_prefix='The following commands are available:\n', helptext_suffix='\n(type \'help <command>\' for details)\n', batch=False):
 		"""
 		Create a new interactive commandline interface to rootclass by creating
 		an instance of rootclass (your class must derive from ICmdBase). Use
@@ -150,12 +167,12 @@ class ICmd(object):
 		self.prompt = prompt
 		self.welcometext = welcometext
 		self.batch = batch
+		self.histfile = histfile
 		self.instclass = self.rootclass(helptext_prefix, helptext_suffix, self.batch)
 
-		# Initialize readline, but only if we were able to load the module.
-		if 'readline' in sys.modules:
+		# Initialize readline, but only if we we're able to load the module.
+		if 'readline' in sys.modules or 'pyreadline' in sys.modules:
 			logging.info("Using readline")
-			self.histfile = os.path.join(os.environ["HOME"], ".mcinvedit")
 			try:
 				readline.read_history_file(self.histfile)
 			except IOError:
@@ -176,6 +193,7 @@ class ICmd(object):
 		logging.info("Dispatching %s %s" % (cmd, str(params)))
 		try:
 			func = getattr(self.instclass, cmd)
+			getattr(func, '__call__') # Test callability
 		except AttributeError, e:
 			raise ICmdError(1, "No such command: '%s'. Type 'help [command]' for help." % (cmd))
 
@@ -247,7 +265,7 @@ class ICmd(object):
 				else:
 					self.run_once()
 		except (SystemExit, KeyboardInterrupt):
-			if 'readline' in sys.modules:
+			if 'readline' in sys.modules or 'pyreadline' in sys.modules:
 				logging.info("Writing readline command history")
 				readline.write_history_file(self.histfile)
 
