@@ -12,13 +12,23 @@ class SDB(object):
 	...   ['seymore', 20, 'Student'],
 	... ]
 	>>> sdb = SDB(data=data, cols=['name', 'age', 'occupation'], id='name')
+
+	# Select by ID
 	>>> sdb.get('tom')
 	{'age': 18, 'name': 'tom', 'occupation': 'Student'}
+
+	# Select all rows where occupation is 'Student'
 	>>> sdb.select(lambda row: row['occupation'] == 'Student')
 	[{'age': 18, 'name': 'tom', 'occupation': 'Student'}, {'age': 20, 'name': 'seymore', 'occupation': 'Student'}]
-	>>> sdb.select(lambda row: row['age'] < 65, lambda a, b: cmp(a['name'], b['name']))
-	[{'age': 30, 'name': 'harry', 'occupation': 'Unemployed'}, {'age': 20, 'name': 'seymore', 'occupation': 'Student'}, {'age': 18, 'name': 'tom', 'occupation': 'Student'}]
+
+	# Select all rows where age < 65. Sort by age
+	>>> sdb.select(lambda row: row['age'] < 65, lambda a, b: cmp(a['age'], b['age']))
+	[{'age': 18, 'name': 'tom', 'occupation': 'Student'}, {'age': 20, 'name': 'seymore', 'occupation': 'Student'}, {'age': 30, 'name': 'harry', 'occupation': 'Unemployed'}]
+
+	# Save
 	>>> sdb.save('occup.dat')
+
+	# Load from file
 	>>> sdb = SDB(path='occup.dat', cols=['name', 'age', 'occupation'], id='name', col_types=[str, int, str])
 	>>> for row in sdb:
 	...   print row
@@ -26,15 +36,29 @@ class SDB(object):
 	{'age': 65, 'name': 'dick', 'occupation': 'Retired'}
 	{'age': 30, 'name': 'harry', 'occupation': 'Unemployed'}
 	{'age': 20, 'name': 'seymore', 'occupation': 'Student'}
+
+	# Insert
 	>>> sdb.insert(['claus', 350, 'Jolly man'])
+
+	# Select all rows where age > 60 and name contains 't'.
 	>>> sdb.select(lambda row: row['age'] > 60 or 't' in row['name'])
 	[{'age': 18, 'name': 'tom', 'occupation': 'Student'}, {'age': 65, 'name': 'dick', 'occupation': 'Retired'}, {'age': 350, 'name': 'claus', 'occupation': 'Jolly man'}]
+
+	# Update all rows where name == 'tom', set age to 20 and occupation to 'Junior Developer'
 	>>> sdb.update({'age': 20, 'occupation': 'Junior Developer'}, lambda row: row['name'] == 'tom')
+
+	# Select by ID
 	>>> sdb.get('tom')
 	{'age': 20, 'name': 'tom', 'occupation': 'Junior Developer'}
+
+	# Delete all rows where age < 30
 	>>> sdb.delete(lambda row: row['age'] < 30)
+
+	# Select all rows
 	>>> sdb.select()
 	[{'age': 65, 'name': 'dick', 'occupation': 'Retired'}, {'age': 30, 'name': 'harry', 'occupation': 'Unemployed'}, {'age': 350, 'name': 'claus', 'occupation': 'Jolly man'}]
+
+	# Cleanup
 	>>> os.unlink('occup.dat')
 	"""
 	def __init__(self, path=None, data=None, sep=',', id=None, cols=[], col_types=None):
