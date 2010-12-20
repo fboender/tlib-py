@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # Copyright (c) 2010 Ferry Boender
 # 
 # Permission to use, copy, modify, and/or distribute this software for any
@@ -13,13 +11,14 @@
 # WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-
+#
 #
 # TODO:
 # -  File "/home/todsah/Development/mcplayeredit/lib/icmd.py", line 97, in _help_getspecifics
 #    help_short, help_desc = doc[0], '\n  '.join(doc[1:]) (EMPTY DOC STRING)
 
-#
+
+__VERSION__ = (0, 1)
 
 """
 ICmd is a wrapper library for easily creating interactive commandline programs.

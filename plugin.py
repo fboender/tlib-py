@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 # Copyright (c) 2010 Ferry Boender
 # 
 # Permission to use, copy, modify, and/or distribute this software for any
@@ -17,8 +15,9 @@
 #TODO: 
 # - Event dispatching should be done in seperate threads. 
 
-"""
+__VERSION__ = (0, 1)
 
+"""
 Example plugin:
 
 	--------------------------------------------------

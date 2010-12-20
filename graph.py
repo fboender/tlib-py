@@ -12,7 +12,7 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-import sys
+__VERSION__ = (0, 1)
 
 """
 The graph module allows you to use Graph data structures. A graph has nodes and
@@ -35,6 +35,8 @@ Example:
 >>> g.resolve('wordpress')
 ['apache', 'php', 'pear', 'wordpress']
 """
+
+import sys
 
 class Graph(object):
 	def __init__(self):
