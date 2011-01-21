@@ -61,9 +61,13 @@ class SDB(object):
 	# Update all rows where name == 'tom', set age to 20 and occupation to 'Junior Developer'
 	>>> sdb.update({'age': 20, 'occupation': 'Junior Developer'}, lambda row: row['name'] == 'tom')
 
-	# Select by ID
+	# Select a single row by ID
 	>>> sdb.get('tom')
 	{'age': 20, 'name': 'tom', 'occupation': 'Junior Developer'}
+
+	# Select a single row by muliple fields (values must exactly match)
+	>>> sdb.getx(name='seymore', occupation='Student')
+	{'age': 20, 'name': 'seymore', 'occupation': 'Student'}
 
 	# Delete all rows where age < 30
 	>>> sdb.delete(lambda row: row['age'] < 30)
@@ -139,6 +143,18 @@ class SDB(object):
 		"""
 		for row in self.data:
 			if row[self.id_index] == id:
+				return(self._make_drow(row))
+
+	def getx(self, **kwargs):
+		"""
+		Get a row by multiple columns
+		"""
+		for row in self.data:
+			match = True
+			for colname, value in kwargs.items():
+				if row[self.cols.index(colname)] != value:
+					match = False
+			if match:
 				return(self._make_drow(row))
 
 	def select(self, select_cb=None, sort_cb=None):
