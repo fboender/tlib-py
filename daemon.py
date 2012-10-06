@@ -12,6 +12,12 @@
 # ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 # OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#
+# Todo:
+#   - Redirect stderr/stdout to logging handler
+#   - Detect if PID in PID file is still valid. If not, remove PID file and
+#     continue as if daemon isn't running.
+
 __VERSION__ = (0, 1)
 
 import optparse
@@ -205,6 +211,8 @@ if __name__ == "__main__":
     parser.add_option("-d", "--debug", dest="debug", type="int", action="store", default=30, help="Debug level (0-50)")
 
     (options, args) = parser.parse_args()
+    if not options.action:
+        options.action = ACTION_START
     options.debug = 50 - options.debug # invert debug lvl: 0 = low, 50 = high
 
     try:
