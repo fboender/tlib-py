@@ -20,14 +20,28 @@
 
 __VERSION__ = (0, 1)
 
-import optparse
-import logging
 import os
 import sys
+import logging
+import optparse
+import ConfigParser
 
 ACTION_START = 1
 ACTION_STOP = 2
 ACTION_RESTART = 3
+
+class StreamToLogger(object):
+   """
+   Fake file-like stream object that redirects writes to a logger instance.
+   """
+   def __init__(self, logger, log_level=logging.INFO):
+      self.logger = logger
+      self.log_level = log_level
+      self.linebuf = ''
+
+   def write(self, buf):
+      for line in buf.rstrip().splitlines():
+         self.logger.log(self.log_level, line.rstrip())
 
 class DaemonError(Exception):
     pass
@@ -38,8 +52,9 @@ class Daemon:
     """
 
     def __init__(
-            self, pidfile=None, printpid=True, configfiles=None, logfile=None,
-            loglevel=logging.INFO, log_stdout=False, foreground=False
+            self, pidfile=None, printpid=True, use_config=True,
+            configfiles=None, logfile=None, loglevel=logging.INFO,
+            log_stdout=False, foreground=False
         ):
         self.printpid = printpid
         self.loglevel = loglevel
@@ -54,14 +69,21 @@ class Daemon:
                 self.pidfile = os.path.join('/var/run', self.basename+'.pid')
             else:
                 self.pidfile = os.path.join(self.basepath, self.basename+'.pid')
-        if configfiles:
-            self.configfiles = configfiles
-        else:
-            self.configfiles = [
-                os.path.join(self.basepath, self.basename+'.conf'),
-                os.path.join(os.getenv('HOME'),'.'+self.basename, self.basename+'.conf'),
-                os.path.join('/etc', self.basename, self.basename+'.conf'),
-            ]
+        if use_config:
+            if configfiles:
+                self.configfiles = configfiles
+            else:
+                self.configfiles = [
+                    os.path.join(self.basepath, self.basename+'.conf'),
+                    os.path.join(os.getenv('HOME'),'.'+self.basename, self.basename+'.conf'),
+                    os.path.join('/etc', self.basename, self.basename+'.conf'),
+                ]
+            self.config = ConfigParser.ConfigParser()
+            configsread = self.config.read(self.configfiles)
+            if not configsread:
+                sys.stderr.write('No config file found. Aborting')
+                sys.exit(1)
+
         if logfile:
             self.logfile = logfile
         else:
@@ -80,6 +102,7 @@ class Daemon:
         self.log.setLevel(self.loglevel)
 
         if self.log_stdout:
+            # Also log to stdout. This only works if foreground = True
             console = logging.StreamHandler()
             formatter = logging.Formatter('[%(levelname)s] %(message)s')
             console.setFormatter(formatter)
@@ -92,6 +115,12 @@ class Daemon:
         self.log.info('logfile = %s' % (self.logfile))
 
     def getrunningpid(self):
+        """
+        Return the PID of the currently running daemon (as reported in the PID
+        file). Returns integer which is the PID or None if no PID file was
+        found. Raises DaemonError if the PID mentioned in the PID file doesn't
+        actually exist.
+        """
         pid = None
 
         try:
@@ -198,6 +227,10 @@ class Daemon:
         os.open("/dev/null", os.O_RDWR)    # standard input (0)
         os.dup2(0, 1)            # standard output (1)
         os.dup2(0, 2)            # standard error (2)
+
+        # Redirect python's stdout/stderr streams to the logger
+        sys.stdout = StreamToLogger(self.log, logging.INFO)
+        sys.stderr = StreamToLogger(self.log, logging.ERROR)
 
 if __name__ == "__main__":
     import time
