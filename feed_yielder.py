@@ -38,20 +38,27 @@ class FeedYielder:
     """
     Yield new items from RSS or Atom feed in correct order.
     """
-    def __init__(self, url, interval=3600, last_seen=None, last_id=None):
+    def __init__(self, name, url, interval=3600, last_seen=None, last_id=None,
+                 ignore_errors=True):
         """
         Create a new FeedYielder. `url` is an url or path pointing to an
         RSS or Atom feed. `interval` in seconds determines how often the feed
-        will be reloaded. `last_seen` is a unix timestamp (time.time()) of when
-        the feed was last seen. If `interval` seconds has elapsed since then,
-        the feed will be reread. `last_id` is the last item id (guid for RSS,
-        id from Atom feeds) that was seen. This is used to figure out which
-        items are new.
+        will be reloaded.
+
+        `last_seen` is a unix timestamp (time.time()) of when the feed was last
+        seen. If `interval` seconds has elapsed since then, the feed will be
+        reread. `last_id` is the last item id (guid for RSS, id from Atom
+        feeds) that was seen. This is used to figure out which items are new.
+
+        `ignore_errors` prevents FeedYielder from raising exceptions of the
+        feed had a 'bozo' error (see the 'feedparser' python module for what
+        that means).
 
         By default, the feed isn't read for the first time until `interval` has
         elapsed. If you want it to be read right away, pass 0 as the last_seen
         value.
         """
+        self.name = name
         self.url = url
         self.interval = interval
         if last_seen is not None:
@@ -59,8 +66,10 @@ class FeedYielder:
         else:
             self.last_seen = time.time()
         self.last_id = last_id
+        self.ignore_errors = ignore_errors
         self.changed = False
         self.log = logging.getLogger('FEEDYIELDER')
+        self.last_feed = None
 
     def poll(self):
         """
@@ -76,8 +85,8 @@ class FeedYielder:
         self.last_seen = now
         self.changed = True
 
-        feed = self._read_feed()
-        new_items = self._get_new_items(feed)
+        self.last_feed = self._read_feed()
+        new_items = self._get_new_items(self.last_feed)
         if new_items:
             self.last_id = new_items[0]['id']
             for new_item in reversed(new_items):
@@ -90,6 +99,8 @@ class FeedYielder:
         """
         new_items = []
         for item in feed['items']:
+            if not 'id' in item:
+                item['id'] = item['link']
             if item['id'] == self.last_id:
                 break
             new_items.append(item)
@@ -101,13 +112,13 @@ class FeedYielder:
         Read the feed and return it. If errors are detected, raises a
         FeedYielderError.
         """
-        self.log.debug("Reading feed {}".format(self.url))
+        self.log.info("Reading feed {}".format(self.url))
         feed = feedparser.parse(self.url)
         if 'status' in feed and feed['status'] != 200:
             raise FieldYielderError(
                 'Feed returned HTTP error status {}'.format(feed['status'])
             )
-        if 'bozo' in feed and feed['bozo']:
+        if 'bozo' in feed and feed['bozo'] and not self.ignore_errors:
             raise FieldYielderError(
                 'Feed parse error: {}'.format(feed.bozo_exception)
             )
@@ -141,12 +152,12 @@ class MultiFeedYielder:
         self._feed_status = self._load_status()
         self.log = logging.getLogger('MULTIFEEDYIELDER')
 
-    def add_feed(self, url, interval, last_seen=None, last_id=None):
+    def add_feed(self, name, url, interval, last_seen=None, last_id=None):
         if url in self._feed_status:
             # Override params with persisted state
             last_seen = self._feed_status[url]['last_seen']
             last_id = self._feed_status[url]['last_id']
-        feed = FeedYielder(url, interval, last_seen, last_id)
+        feed = FeedYielder(name, url, interval, last_seen, last_id)
         self.feeds.append(feed)
 
     def poll(self):
